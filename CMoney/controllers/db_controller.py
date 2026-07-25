@@ -1,10 +1,9 @@
-import os
 import json
 from models.db import Db
 
-class dbController:
+class DbController:
     def __init__(self, db: Db, db_path: str = "banco_dados.json"):
-        self.__db_path: str = db_path
+        self.__db_path = db_path
         self.__db = db
 
     # função para escrever no arquivo banco_dados.json
