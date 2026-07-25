@@ -6,27 +6,13 @@ from models.usuario import Usuario
 from models.transacao import Transacao, Receita, Despesa, Categoria
 from models.database_models import ItemCompra, RegistroLog
 
-class SistemaController:
-    def __init__(self, db_path: str = "banco_dados.json"):
-        self.db_path: str = db_path
-        self.transacoes: Dict[int, Transacao] = {}
-        self.categorias: Dict[str, Categoria] = {}
-        self.lista_compras: Dict[int, ItemCompra] = {}
-        self.usuarios: Dict[str, Usuario] = {}
-        self.logs: Dict[int, RegistroLog] = {}
-        self.usuario_atual: Usuario = None
-        
-        self.proximo_id_transacao = 1
-        self.proximo_id_compra = 1
-        self.proximo_id_log = 1
-        self.carregar_dados()
+# Os erros neste arquivo são intencionais e desaparecerão conforme a reestruturação for sendo concluída
 
-    def registrar_log(self, acao: str, detalhes: str):
-        usuario = self.usuario_atual.username if self.usuario_atual else "Sistema"
-        log = RegistroLog(self.proximo_id_log, usuario, acao, detalhes)
-        self.logs[log.id] = log
-        self.proximo_id_log += 1
-        self.salvar_dados()
+class SistemaController:
+    def __init__(self):
+        self.usuario_atual: Usuario = None
+        self.proximo_id_compra = 1
+        self.carregar_dados()
 
     def carregar_dados(self):
         if not os.path.exists(self.db_path):
@@ -66,17 +52,6 @@ class SistemaController:
         self.usuarios = {"admin": Usuario("admin", "admin", "Gerente"), "user": Usuario("user", "user", "Funcionário")}
         self.salvar_dados()
 
-    def salvar_dados(self):
-        data = {
-            "categorias": [c.to_dict() for c in self.categorias.values()],
-            "transacoes": [t.to_dict() for t in self.transacoes.values()],
-            "lista_compras": [i.to_dict() for i in self.lista_compras.values()],
-            "logs": [l.to_dict() for l in self.logs.values()],
-            "usuarios": {u.username: u.to_dict() for u in self.usuarios.values()}
-        }
-        with open(self.db_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
-
     def login(self, username: str, senha: str) -> bool:
         user = self.usuarios.get(username)
         if user and user.password == senha:
@@ -85,38 +60,9 @@ class SistemaController:
             return True
         return False
 
-    def registrar_usuario(self, username: str, senha: str, perfil: str) -> bool:
-        if username in self.usuarios: return False
-        self.usuarios[username] = Usuario(username, senha, perfil)
-        self.registrar_log("CRIAR_USUARIO", f"Novo usuário registrado: {username} ({perfil}).")
-        self.salvar_dados()
-        return True
-
     # === TRANSAÇÕES ===
     # === TRANSAÇÕES (NOVO CRIAR COM VALIDAÇÃO DE TETO) ===
-    def criar_transacao(self, tipo: str, descricao: str, valor: float, categoria_nome: str) -> tuple:
-        cat = self.categorias.get(categoria_nome)
-        if not cat: 
-            return False, "Categoria não existe."
-            
-        if tipo == "Despesa":
-            if cat.bloqueada: 
-                return False, "ERRO: Verba bloqueada para esta categoria!"
-            
-            # --- VALIDAÇÃO DE TETO DE VERBA ---
-            # Soma tudo o que já gastou nessa categoria específica
-            total_gasto = sum(t.valor for t in self.transacoes.values() if t.__class__.__name__ == "Despesa" and t.categoria == categoria_nome)
-            
-            # Se o (já gasto + novo valor) estourar o limite, bloqueia!
-            if total_gasto + valor > cat.limite_verba:
-                return False, f"ERRO: Esta despesa excede o teto da categoria!\nLimite: R$ {cat.limite_verba:.2f}\nJá gasto: R$ {total_gasto:.2f}\nDisponível: R$ {cat.limite_verba - total_gasto:.2f}"
-        
-        t = Receita(self.proximo_id_transacao, descricao, valor, categoria_nome) if tipo == "Receita" else Despesa(self.proximo_id_transacao, descricao, valor, categoria_nome)
-        self.transacoes[t.id] = t
-        self.proximo_id_transacao += 1
-        self.registrar_log("CRIAR_TRANSACAO", f"{tipo}: R${valor:.2f} em {categoria_nome} ({descricao}).")
-        self.salvar_dados()
-        return True, "Sucesso"
+    
 
     # === TRANSAÇÕES (NOVO ATUALIZAR COM VALIDAÇÃO DE TETO) ===
     def atualizar_transacao(self, id_t: int, tipo: str, descricao: str, valor: float, categoria_nome: str) -> bool:
