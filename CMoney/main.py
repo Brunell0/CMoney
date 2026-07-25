@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from controllers.sistema_controller import SistemaController
+from controllers.System_controller import SystemController
 from views.auth_view import AuthView
 from views.main_view import MainView
 
@@ -11,7 +11,7 @@ class AppGastoEmpresa:
         self.root.geometry("850x600")
         
         # Inicia o Controller global
-        self.controller = SistemaController()
+        self.controller = SystemController()
         
         # Configurações de estilo global
         style = ttk.Style()
