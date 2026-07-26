@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+from views.relatorios_view import RelatoriosView
 
 class MainView(tk.Frame):
     def __init__(self, parent, controller, on_logout):
@@ -68,7 +69,7 @@ class MainView(tk.Frame):
         self.aba_gerencia = ttk.Frame(self.notebook)
         self.aba_compras = ttk.Frame(self.notebook)
         self.aba_logs = ttk.Frame(self.notebook)
-        self.aba_config = ttk.Frame(self.notebook)
+        self.aba_config = RelatoriosView(self.notebook, self.controller)
         
         self.notebook.add(self.aba_planilhas, text="📊  Registros")
         self.notebook.add(self.aba_gerencia, text="🛡️  Gerência")
@@ -343,36 +344,4 @@ class MainView(tk.Frame):
             for i in self.tree_log.get_children(): self.tree_log.delete(i)
             for l in sorted(self.controller.logs.values(), key=lambda x: x.id, reverse=True):
                 self.tree_log.insert("", "end", values=(l.datahora, l.usuario, l.acao, l.detalhes))
-
-    # --- ABA RELATÓRIO ---
-    def montar_aba_config(self):
-        card = tk.Frame(self.aba_config, bg="white", bd=1, relief="solid")
-        card.configure(highlightthickness=0)
-        card.pack(pady=40, padx=50, fill="x")
-        
-        lbl = tk.Label(card, text="Central de Exportação de Relatórios", font=("Segoe UI", 14, "bold"), bg="white", fg="#1e3a8a")
-        lbl.pack(pady=20)
-        
-        lbl_info = tk.Label(card, text="A exportação gera um arquivo .csv (planilha do Excel),\ncontendo tabelas secundárias de compras consolidadas por categoria.", font=("Segoe UI", 10), bg="white", fg="#4b5563")
-        lbl_info.pack(pady=5)
-
-        def gerar_excel():
-            arquivo = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("Excel CSV (Com separador)", "*.csv")],
-                title="Salvar Relatório Excel"
-            )
-            if arquivo:
-                self.controller.gerar_excel_csv(arquivo)
-                messagebox.showinfo("Sucesso", "Relatório de dados criado e pronto para análise corporativa!")
-
-        ttk.Button(card, text="💾  Exportar Relatório Excel (.csv)", command=gerar_excel, padding=[20,10]).pack(pady=25)
-        
-        # Créditos no Rodapé da Tela
-        grupo_f = tk.Frame(self.aba_config, bg="#f8f9fa")
-        grupo_f.pack(side="bottom", anchor="w", padx=25, pady=25)
-        tk.Label(grupo_f, text="EQUIPE DE PROGRAMAÇÃO ORIENTADA A OBJETOS:", font=("Segoe UI", 9, "bold"), fg="#6b7280", bg="#f8f9fa").pack(anchor="w")
-        
-        membros = ["• Bruno Antonello", "• Felipe Lima", "• João Marcelo Turolla", "• Vitória Akemi Nakai"]
-        for m in membros:
-            tk.Label(grupo_f, text=m, font=("Segoe UI", 9), fg="#6b7280", bg="#f8f9fa").pack(anchor="w", padx=10)
+    
