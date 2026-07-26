@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from views.relatorios_view import RelatoriosView
+from views.logs_view import LogsView
 
 class MainView(tk.Frame):
     def __init__(self, parent, controller, on_logout):
@@ -68,7 +69,7 @@ class MainView(tk.Frame):
         self.aba_planilhas = ttk.Frame(self.notebook)
         self.aba_gerencia = ttk.Frame(self.notebook)
         self.aba_compras = ttk.Frame(self.notebook)
-        self.aba_logs = ttk.Frame(self.notebook)
+        self.aba_logs = LogsView(self.notebook, self.controller)
         self.aba_config = RelatoriosView(self.notebook, self.controller)
         
         self.notebook.add(self.aba_planilhas, text="📊  Registros")
@@ -89,7 +90,7 @@ class MainView(tk.Frame):
         self.atualizar_tabela_planilha()
         self.atualizar_cats()
         self.atualizar_compras()
-        self.atualizar_logs()
+        self.aba_logs.atualizar_logs()
 
     # --- ABA REGISTROS ---
     def montar_aba_planilhas(self):
@@ -322,26 +323,4 @@ class MainView(tk.Frame):
         for i in self.tree_compra.get_children(): self.tree_compra.delete(i)
         for i in self.controller.lista_compras.values():
             self.tree_compra.insert("", "end", values=(i.id, i.nome, i.quantidade, f"R$ {i.quantidade*i.estimado:.2f}", "✅ Comprado" if i.comprado else "⏳ Pendente"))
-
-    # --- ABA LOGS ---
-    def montar_aba_logs(self):
-        if self.controller.usuario_atual.perfil != "Gerente":
-            ttk.Label(self.aba_logs, text="🔒 ACESSO RESTRITO A GERENTES", font=("Segoe UI", 12, "bold"), foreground="#ef4444").pack(expand=True)
-            return
-
-        tabela_l = ttk.LabelFrame(self.aba_logs, text=" Histórico Geral de Operações de Auditoria ", padding=10)
-        tabela_l.pack(fill="both", expand=True, padx=20, pady=20)
-
-        self.tree_log = ttk.Treeview(tabela_l, columns=("Data", "Usuario", "Acao", "Detalhes"), show="headings", height=12)
-        self.tree_log.heading("Data", text="DATA / HORA"); self.tree_log.column("Data", width=140, anchor="center")
-        self.tree_log.heading("Usuario", text="OPERADOR"); self.tree_log.column("Usuario", width=90, anchor="center")
-        self.tree_log.heading("Acao", text="AÇÃO SISTÊMICA"); self.tree_log.column("Acao", width=150, anchor="center")
-        self.tree_log.heading("Detalhes", text="MODIFICAÇÕES DETALHADAS"); self.tree_log.column("Detalhes", width=400)
-        self.tree_log.pack(fill="both", expand=True, padx=5, pady=5)
-
-    def atualizar_logs(self):
-        if hasattr(self, 'tree_log'):
-            for i in self.tree_log.get_children(): self.tree_log.delete(i)
-            for l in sorted(self.controller.logs.values(), key=lambda x: x.id, reverse=True):
-                self.tree_log.insert("", "end", values=(l.datahora, l.usuario, l.acao, l.detalhes))
     
