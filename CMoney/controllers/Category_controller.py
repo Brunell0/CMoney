@@ -7,32 +7,46 @@ class CategoryController:
         self.__dbC = dbController
         self.__lgC = logController
 
-    def adicionar_categoria(self, nome: str, limite: float): # precisa receber o user
-        if nome not in self.__dbC.__db.__categorias:
-            self.__dbC.__db.__categorias[nome] = Categoria(nome, limite)
-            self.__lgC.registrar_log("CRIAR_CATEGORIA", f"Categoria '{nome}' criada com limite R${limite:.2f}.")
-            self.__dbC.salvar_dados()
+    def alterar_status_verba(self, nome: str, status: bool, nome_usuario: str) -> tuple[bool, str]:
+        if not self.__dbC.checa_categoria_existe(nome): 
+            return False, f"Categoria de nome: '{nome}' não foi encontrada"
+        
+        self.__dbC.alterna_status_categoria(nome, status)
+        acao_str = "Bloqueou" if status else "Liberou"
+        self.__lgC.registrar_log("STATUS_VERBA", f"{acao_str} verba da categoria '{nome}'.", nome_usuario)
+        self.__dbC.salvar_dados()
+        return True, f"Status alterado com sucesso"
+
+    def adicionar_categoria(self, nome: str, limite: float, nome_usuario: str) -> tuple[bool, str]:
+        if self.__dbC.checa_categoria_existe(nome): return False, f"Categoria de nome: '{nome}' já existe"
+        cat = Categoria(nome, limite)
+        self.__dbC.adiciona_categoria(nome, cat)
+        self.__lgC.registrar_log("CRIAR_CATEGORIA", f"Categoria '{nome}' criada com limite R${limite:.2f}.",
+            nome_usuario)
+        self.__dbC.salvar_dados()
+        return True, f"Categoria de nome: '{nome}' criada com sucesso"
     
-    def editar_categoria(self, nome_antigo: str, novo_nome: str, novo_limite: float): # precisa receber o user
-        if nome_antigo in self.categorias:
-            cat = self.__dbC.__db.__categorias.pop(nome_antigo)
+    def editar_categoria(self, nome_antigo: str, novo_nome: str, novo_limite: float, nome_usuario: str):
+        if self.__dbC.checa_categoria_existe(nome_antigo):
+            cat = self.__dbC.pop_categoria(nome_antigo)
             cat.nome = novo_nome
             cat.limite_verba = novo_limite
-            self.__dbC.__db.__categorias[novo_nome] = cat
+            self.__dbC.adiciona_categoria(novo_nome, cat)
+
             # Atualiza histórico de transações atreladas à categoria
-            if nome_antigo != novo_nome:
-                for t in self.__dbC.__db.__transacoes.values():
-                    if t.categoria == nome_antigo:
-                        t.categoria = novo_nome
+            self.__dbC.atualiza_historico_categorias(nome_antigo, novo_nome)
 
             logDescription = f"Categoria '{nome_antigo}' renomeada/alterada para '{novo_nome}' com teto R${novo_limite:.2f}."
 
-            self.__lgC.registrar_log("EDITAR_CATEGORIA", logDescription)
+            self.__lgC.registrar_log("EDITAR_CATEGORIA", logDescription, nome_usuario)
             self.__dbC.salvar_dados()
 
-    def deletar_categoria(self, nome: str): # precisa receber o user
-        if nome in self.__dbC.__db.__categorias:
-            del self.__dbC.__db.__categorias[nome]
+    def deletar_categoria(self, cat_nome: str, nome_usuario: str) -> tuple[bool, str]:
+        if not self.__dbC.checa_categoria_existe(cat_nome): 
+            mensagem_falha = f"Não foi possível encontrar uma categoria de nome: '{cat_nome}'"
+            return False, mensagem_falha
+        del self.__dbC.remove_categoria(cat_nome)
 
-            self.__lgC.registrar_log("DELETAR_CATEGORIA", f"Categoria '{nome}' removida.")
-            self.__dbC.salvar_dados()
+        self.__lgC.registrar_log("DELETAR_CATEGORIA", f"Categoria '{cat_nome}' removida.", nome_usuario)
+        self.__dbC.salvar_dados()
+        return True, f"Categoria de nome: '{cat_nome}' deletada com sucesso"
