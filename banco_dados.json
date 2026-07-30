@@ -1,0 +1,52 @@
+{
+    "categorias": [
+        {
+            "nome": "Marketing",
+            "limite_verba": 5000.0,
+            "bloqueada": false
+        },
+        {
+            "nome": "Infraestrutura",
+            "limite_verba": 5000.0,
+            "bloqueada": false
+        },
+        {
+            "nome": "Operações",
+            "limite_verba": 5000.0,
+            "bloqueada": false
+        },
+        {
+            "nome": "RH",
+            "limite_verba": 55000.0,
+            "bloqueada": false
+        }
+    ],
+    "transacoes": [],
+    "lista_compras": [],
+    "logs": [
+        {
+            "id": 1,
+            "usuario": "admin",
+            "acao": "LOGIN",
+            "detalhes": "Usuário 'admin' iniciou sessão.",
+            "datahora": "30/07/2026 20:19:38"
+        },
+        {
+            "id": 2,
+            "usuario": "admin",
+            "acao": "EDITAR_CATEGORIA",
+            "detalhes": "Categoria 'RH' renomeada/alterada para 'RH' com teto R$55000.00.",
+            "datahora": "30/07/2026 20:26:42"
+        }
+    ],
+    "usuarios": {
+        "admin": {
+            "senha": "admin",
+            "perfil": "Gerente"
+        },
+        "user": {
+            "senha": "user",
+            "perfil": "Funcionário"
+        }
+    }
+}
