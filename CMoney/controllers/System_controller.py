@@ -1,6 +1,5 @@
 import json
 import os
-import csv
 
 # Import de todos os models necessários no sistema
 from models.usuario import Usuario
@@ -8,14 +7,13 @@ from models.transacao import Receita, Despesa, Categoria
 from models.database_models import ItemCompra, RegistroLog
 
 # Import de todos os controllers para referenciação
-from controllers.Db_controller import DbController
-from controllers.Log_controller import LogController
-from controllers.Login_controller import LoginController
-from controllers.Category_controller import CategoryController
-from controllers.Transaction_controller import TransactionController
-from controllers.Registration_controller import RegistrationController
-
-# Os erros neste arquivo são intencionais e desaparecerão conforme a reestruturação for avançando
+from Db_controller import DbController
+from Log_controller import LogController
+from Login_controller import LoginController
+from Category_controller import CategoryController
+from Shopping_controller import ShoppingController
+from Transaction_controller import TransactionController
+from Registration_controller import RegistrationController
 
 class SystemController:
     def __init__(self, 
@@ -23,6 +21,7 @@ class SystemController:
             logController: LogController,
             loginController: LoginController,
             categoryController: CategoryController,
+            shoppingController: ShoppingController,
             transactionController: TransactionController,
             registrationController: RegistrationController
         ):
@@ -31,10 +30,11 @@ class SystemController:
         self.__lgC = logController
         self.__lnC = loginController
         self.__cyC = categoryController
+        self.__sgC = shoppingController
         self.__tnC = transactionController
         self.__rnC = registrationController
 
-        self.usuario_atual: Usuario = None
+        self.usuario_atual: str = None
         self.carregar_dados()
 
     def carregar_dados(self):
@@ -56,109 +56,99 @@ class SystemController:
 
             if t_data["tipo"] == "Receita":
                 t = Receita(t_data["id"], t_data["descricao"], t_data["valor"], t_data["categoria"], t_data["data"])
-                self.__dbC.__db.__transacoes[t.id] = t
+                if self.__dbC.checa_transacao_existe(t.id): continue
+                self.__dbC.adiciona_transacao(t.id, t)
             elif t_data["tipo"] == "Despesa":
                 t = Despesa(t_data["id"], t_data["descricao"], t_data["valor"], t_data["categoria"], t_data["data"]) 
-                self.__dbC.__db.__transacoes[t.id] = t
+                if self.__dbC.checa_transacao_existe(t.id): continue
+                self.__dbC.adiciona_transacao(t.id, t)
 
             if t.id >= self.__tnC.proximo_id_transacao: self.__tnC.proximo_id_transacao = t.id + 1
                 
         for i_data in data.get("lista_compras", []):
             item = ItemCompra(**i_data)
-            self.__dbC.__db.__listaCompras[item.id] = item
-            if item.id >= self.proximo_id_compra: self.proximo_id_compra = item.id + 1 #adicionar controller para compras
+            if self.__dbC.checa_compra_existe(item.id): continue
+            self.__dbC.adiciona_compra(item.id, item)
+            if item.id >= self.__sgC.proximo_id_compra: self.__sgC.proximo_id_compra = item.id + 1
 
         for l_data in data.get("logs", []):
             log = RegistroLog(l_data["id"], l_data["usuario"], l_data["acao"], l_data["detalhes"], l_data["datahora"])
-            self.__dbC.__logs[log.id] = log
+            self.__dbC.adiciona_logs(log.id, log)
             if log.id >= self.__lgC.proximo_id_log: self.__lgC.proximo_id_log = log.id + 1
                 
         for user, u_data in data.get("usuarios", {}).items():
-            self.__dbC.__db.__usuarios[user] = Usuario(user, u_data["senha"], u_data["perfil"])
+            u = Usuario(user, u_data["senha"], u_data["perfil"])
+            if self.__dbC.checa_usuario_existe(u.username): continue
+            self.__dbC.adiciona_usuario(u.username, u)
 
     def _criar_dados_padrao(self):
-        self.__dbC.__db.__categorias = {
-            c: Categoria(c) for c in ["Marketing", "Infraestrutura", "RH", "Operações"]
-        }
-        self.__dbC.__db.__usuarios = {
-            "admin": Usuario("admin", "admin", "Gerente"),
-            "user": Usuario("user", "user", "Funcionário")
-        }
+        cat_padrao = ["Marketing", "Infraestrutura", "RH", "Operações"]
+        usuarios_padrao = [Usuario("admin", "admin", "Gerente"), Usuario("user", "user", "Funcionário")]
+        for c in cat_padrao:
+            self.__dbC.adiciona_categoria(c, Categoria(c))
+        for u in usuarios_padrao:
+            self.__dbC.adiciona_usuario(u.username, u)
 
         self.__dbC.salvar_dados()
 
+    # Funções de requisição de login e registro de usuarios ------------------
 
-    # Tudo abaixo disso ainda precisa ser removido daqui
+    def login_request(self, nome: str, senha: str):
+        return self.__lnC.login(nome, senha)
 
-    def alterar_status_verba(self, nome: str, bloquear: bool):
-        if nome in self.categorias:
-            self.categorias[nome].bloqueada = bloquear
-            acao_str = "Bloqueou" if bloquear else "Liberou"
-            self.registrar_log("STATUS_VERBA", f"{acao_str} verba da categoria '{nome}'.")
-            self.salvar_dados()
+    def registra_usuario(self, nome: str, senha: str, perfil: str): # Equivalente a adiciona_usuario, por isso apenas ela
+        return self.__rnC.registrar_usuario(nome, senha, perfil)
 
-    # === LISTA DE COMPRAS CRUD ===
-    def adicionar_item_compra(self, nome: str, qtd: int, estimado: float):
-        item = ItemCompra(self.proximo_id_compra, nome, qtd, estimado)
-        self.lista_compras[item.id] = item
-        self.proximo_id_compra += 1
-        self.registrar_log("CRIAR_COMPRA", f"Item '{nome}' (Qtd: {qtd}) adicionado.")
-        self.salvar_dados()
+    # Funções de adição e remoção --------------------------------------------
 
-    def editar_item_compra(self, id_item: int, nome: str, qtd: int, estimado: float):
-        if id_item in self.lista_compras:
-            item = self.lista_compras[id_item]
-            item.nome = nome
-            item.quantidade = qtd
-            item.estimado = estimado
-            self.registrar_log("EDITAR_COMPRA", f"Item ID {id_item} atualizado para '{nome}'.")
-            self.salvar_dados()
+    def adiciona_categoria(self, nome: str, limite: float, nome_usuario: str):
+        return self.__cyC.adicionar_categoria(nome, limite, nome_usuario)
 
-    def deletar_item_compra(self, id_item: int):
-        if id_item in self.lista_compras:
-            nome = self.lista_compras[id_item].nome
-            del self.lista_compras[id_item]
-            self.registrar_log("DELETAR_COMPRA", f"Item '{nome}' removido.")
-            self.salvar_dados()
+    def remove_categoria(self, cat_nome: str, nome_usuario: str):
+        return self.__cyC.deletar_categoria(cat_nome, nome_usuario)
 
-    def alternar_comprado(self, id_item: int):
-        if id_item in self.lista_compras:
-            self.lista_compras[id_item].comprado = not self.lista_compras[id_item].comprado
-            status = "Comprado" if self.lista_compras[id_item].comprado else "Pendente"
-            self.registrar_log("STATUS_COMPRA", f"Item ID {id_item} alterado para {status}.")
-            self.salvar_dados()
+    def adiciona_item(self, nome: str, qtd: int, estimado: float, nome_usuario: str):
+        return self.__sgC.adicionar_item_compra(nome, qtd, estimado, nome_usuario)
 
-    # === EXCEL NATIVO ===
-    def gerar_excel_csv(self, filepath: str):
-        # Usamos utf-8-sig para que o Excel identifique os acentos perfeitamente no Brasil
-        with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';')
-            
-            # 1. Tabela de Compras
-            writer.writerow(["=== RELATÓRIO DETALHADO DE COMPRAS ==="])
-            writer.writerow(["ID", "ITEM", "QUANTIDADE", "VALOR UNITÁRIO", "TOTAL ESTIMADO", "STATUS"])
-            total_compras = 0
-            for item in self.lista_compras.values():
-                t_estimado = item.quantidade * item.estimado
-                total_compras += t_estimado
-                status = "Comprado" if item.comprado else "Pendente"
-                writer.writerow([item.id, item.nome, item.quantidade, f"R$ {item.estimado:.2f}", f"R$ {t_estimado:.2f}", status])
-            writer.writerow(["", "", "", "TOTAL GERAL DAS COMPRAS:", f"R$ {total_compras:.2f}", ""])
-            writer.writerow([])
-            writer.writerow([])
+    def remove_item(self ,id_item: int, nome_usuario: str):
+        return self.__sgC.deletar_item_compra(id_item, nome_usuario)
 
-            # 2. Tabela Secundária de Categorias e Gastos
-            writer.writerow(["=== ANÁLISE DE GASTOS POR CATEGORIA ==="])
-            writer.writerow(["CATEGORIA", "LIMITE DE VERBA", "TOTAL GASTO (DESPESAS)", "SALDO DA VERBA", "STATUS DA CATEGORIA"])
-            
-            # Calcula gastos por categoria
-            gastos_cat = {c: 0.0 for c in self.categorias.keys()}
-            for t in self.transacoes.values():
-                if t.__class__.__name__ == "Despesa" and t.categoria in gastos_cat:
-                    gastos_cat[t.categoria] += t.valor
+    def adiciona_transacao(self, tipo: str, descricao: str, valor: float, cat_nome: str, nome_usuario):
+        return self.__tnC.criar_transacao(tipo, descricao, valor, cat_nome, nome_usuario)
 
-            for nome_cat, cat_obj in self.categorias.items():
-                gasto = gastos_cat[nome_cat]
-                saldo_verba = cat_obj.limite_verba - gasto
-                status_cat = "BLOQUEADA" if cat_obj.bloqueada else "LIBERADA"
-                writer.writerow([nome_cat, f"R$ {cat_obj.limite_verba:.2f}", f"R$ {gasto:.2f}", f"R$ {saldo_verba:.2f}", status_cat])
+    def remove_transacao(self, id_t: int, nome_usuario: str):
+        return self.__tnC.deletar_transacao(id_t, nome_usuario)
+
+    def remove_usuario(self, usuarioASerRemovido: str, nome_usuario: str):
+        return self.__rnC.remover_usuario(usuarioASerRemovido, nome_usuario)
+
+    # Demais funções, responsáveis por edições e atualizações ----------------
+
+    def alterar_status_verbas(self, nome: str, status: bool, nome_usuario):
+        return self.__cyC.alterar_status_verba(nome, status, nome_usuario)
+
+    def editar_categorias(self, nome_antigo: str, nome_novo: str, novo_limite: float, nome_usuario: str):
+        return self.__cyC.editar_categoria(nome_antigo, nome_novo, novo_limite, nome_usuario)
+
+    def editar_itens(self, id_item: int, nome: str, qtd: int, estimado: float, nome_usuario: str):
+        return self.__sgC.editar_item_compra(id_item, nome, qtd, estimado, nome_usuario)
+
+    def alternar_status_itens(self, id_item: int, nome_usuario: str):
+        return self.__sgC.alternar_status(id_item, nome_usuario)
+
+    def atualiza_transacao(self, id_t: int, tipo: str, descricao: str, valor: float, cat_nome: str, nome_usuario: str):
+        return self.__tnC.atualizar_transacao(id_t, tipo, descricao, valor, cat_nome, nome_usuario)
+
+    # Demais funções sem nada em comum ---------------------------------------
+
+    # Retorna saldo 
+    def saldo_atual(self):
+        return self.__tnC.calcular_saldo()
+
+    # Lista transações
+    def lista_transacoes(self):
+        return self.__dbC.listar_transacoes()
+
+    # Gera arquivo .csv
+    def gerar_csv(self, caminho: str):
+        return self.__dbC.gerar_excel_csv(caminho)   
