@@ -6,7 +6,7 @@ class LogController:
         self.__dbC = dbController
         self.proximo_id_log = 1
 
-    def registrar_log(self, acao: str, detalhes: str, user: str):
-        log = RegistroLog(self.proximo_id_log, user, acao, detalhes)
+    def registrar_log(self, acao: str, detalhes: str, username: str):
+        log = RegistroLog(self.proximo_id_log, username, acao, detalhes)
         self.__dbC.__db.__logs[log.id] = log 
         self.proximo_id_log += 1
